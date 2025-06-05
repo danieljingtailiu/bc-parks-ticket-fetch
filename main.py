@@ -74,7 +74,9 @@ class AdvancedTicketBot:
         if self.test_settings.get('screenshot_steps', False):
             try:
                 self.screenshot_counter += 1
-                filename = f"screenshot_{self.screenshot_counter:02d}_{step_name}.png"
+                screenshots_dir = os.path.join(os.getcwd(), "screenshots")
+                os.makedirs(screenshots_dir, exist_ok=True)
+                filename = os.path.join(screenshots_dir, f"screenshot_{self.screenshot_counter:02d}_{step_name}.png")
                 self.driver.save_screenshot(filename)
                 logger.info(f"Screenshot saved: {filename}")
             except Exception as e:
@@ -143,7 +145,6 @@ class AdvancedTicketBot:
         return self.simulate_step("Refresh Site", _refresh)
     
     def select_park_and_book(self):
-        """Select the specific park and click 'Book a Pass' button"""
         def _select_and_book():
             try:
                 park_info = self.parks.get(self.selected_park, {})
@@ -152,59 +153,36 @@ class AdvancedTicketBot:
                 
                 logger.info(f"Looking for {park_name} on BC Parks website...")
                 
+                # Perform single scroll to reach park listings
+                logger.info("Scrolling to park listings...")
+                self.driver.execute_script("window.scrollTo(0, 1000);")
+                time.sleep(1)  # Minimal wait after scroll for speed
+                
+                # Target the "Book a Pass" button within the Joffre Lakes card
                 wait_timeout = self.config.get('settings', {}).get('wait_timeout', 10)
                 wait = WebDriverWait(self.driver, wait_timeout)
                 
-                # First, try to find the park by name in the list
-                park_selectors = [
-                    f"//a[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{search_text.lower()}')]",
-                    f"//div[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{search_text.lower()}')]//following-sibling::*//a",
-                    f"//h3[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{search_text.lower()}')]//following-sibling::*//a",
-                    f"//span[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{search_text.lower()}')]//ancestor::*//a"
-                ]
+                # Specific selector for the button after the park name
+                selector = f"//*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{search_text.lower()}')]//following::button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'book a pass')][1]"
                 
-                park_element = None
-                for selector in park_selectors:
-                    try:
-                        park_element = wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
-                        logger.info(f"Found park element: {park_element.text}")
-                        break
-                    except:
-                        continue
+                try:
+                    book_button = wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
+                    logger.info(f"Found booking button: {book_button.text}")
+                except TimeoutException:
+                    logger.error(f"Could not find 'Book a Pass' button for {park_name}")
+                    self.take_screenshot("park_not_found_debug")
+                    page_text = self.driver.find_element(By.TAG_NAME, "body").text
+                    logger.debug(f"Available page text: {page_text[:500]}...")
+                    return False
                 
-                if park_element:
-                    park_element.click()
-                    logger.info(f"Clicked on {park_name}")
-                    time.sleep(3)  # Wait for page to load
-                    
-                    # Now look for the "Book a Pass" button on the park-specific page
-                    booking_button_selectors = [
-                        "//a[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'book')]",
-                        "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'book')]",
-                        "//a[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'reserve')]",
-                        "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'reserve')]",
-                        "//a[contains(@href, 'registration')]",
-                        "//a[contains(@class, 'book')]",
-                        "//button[contains(@class, 'book')]"
-                    ]
-                    
-                    for selector in booking_button_selectors:
-                        try:
-                            booking_button = wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
-                            logger.info(f"Found booking button: {booking_button.text}")
-                            booking_button.click()
-                            logger.info("Booking button clicked successfully")
-                            time.sleep(3)  # Wait for booking page to load
-                            return True
-                        except:
-                            continue
-                    
-                    logger.error("Could not find 'Book a Pass' button on park page")
-                    return False
-                else:
-                    logger.error(f"Could not find {park_name} on the website")
-                    return False
-                    
+                # Scroll and click the button
+                self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", book_button)
+                time.sleep(0.5)  # Minimal wait for scroll
+                book_button.click()
+                logger.info(f"Successfully clicked booking button for {park_name}")
+                time.sleep(2)  # Minimal wait for page transition
+                return True
+                
             except Exception as e:
                 logger.error(f"Failed to select park and book: {e}")
                 return False

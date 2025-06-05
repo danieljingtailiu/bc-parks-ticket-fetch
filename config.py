@@ -12,7 +12,7 @@ PARKS = {
     },
     'joffre_lakes': {
         'name': 'Joffre Lakes Provincial Park', 
-        'search_text': 'Joffre'
+        'search_text': 'Joffre Lakes'
     }
 }
 
