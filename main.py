@@ -156,7 +156,7 @@ class AdvancedTicketBot:
                 # Perform single scroll to reach park listings
                 logger.info("Scrolling to park listings...")
                 self.driver.execute_script("window.scrollTo(0, 1000);")
-                time.sleep(1)  # Minimal wait after scroll for speed
+                time.sleep(0.5)  # Minimal wait after scroll for speed
                 
                 # Target the "Book a Pass" button within the Joffre Lakes card
                 wait_timeout = self.config.get('settings', {}).get('wait_timeout', 10)
@@ -180,7 +180,7 @@ class AdvancedTicketBot:
                 time.sleep(0.5)  # Minimal wait for scroll
                 book_button.click()
                 logger.info(f"Successfully clicked booking button for {park_name}")
-                time.sleep(2)  # Minimal wait for page transition
+                time.sleep(1)  # Minimal wait for page transition
                 return True
                 
             except Exception as e:
@@ -190,111 +190,155 @@ class AdvancedTicketBot:
         return self.simulate_step("Select Park and Book", _select_and_book)
     
     def select_visit_date(self):
-        """Select the visit date (2 days after today)"""
         def _select_date():
             try:
                 logger.info(f"Selecting visit date: {self.target_date.strftime('%Y-%m-%d')}")
                 
-                # Common date selector patterns for BC Parks
-                date_selectors = [
-                    "input[type='date']",
-                    "input[name*='date']",
-                    "input[id*='date']",
-                    "select[name*='date']",
-                    "select[id*='date']",
-                    ".date-picker input",
-                    ".datepicker input",
-                    "[data-date-picker] input"
-                ]
-                
                 wait_timeout = self.config.get('settings', {}).get('wait_timeout', 10)
                 wait = WebDriverWait(self.driver, wait_timeout)
-                date_element = None
                 
-                for selector in date_selectors:
-                    try:
-                        date_element = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                        break
-                    except:
-                        continue
-                
-                if date_element:
-                    if date_element.tag_name == 'input':
-                        # For date input fields
-                        date_string = self.target_date.strftime('%Y-%m-%d')
-                        date_element.clear()
-                        date_element.send_keys(date_string)
-                    elif date_element.tag_name == 'select':
-                        # For dropdown selectors
-                        select = Select(date_element)
-                        # Try different date formats
-                        date_formats = [
-                            self.target_date.strftime('%Y-%m-%d'),
-                            self.target_date.strftime('%m/%d/%Y'),
-                            self.target_date.strftime('%d/%m/%Y')
-                        ]
-                        for date_format in date_formats:
-                            try:
-                                select.select_by_value(date_format)
-                                break
-                            except:
-                                continue
-                    
-                    logger.info("Visit date selected successfully")
-                    time.sleep(1)  # Wait for page to update
-                    return True
-                else:
-                    logger.error("Could not find date selector")
+                # Locate the "Visit Date" label
+                label_selector = "//*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'visit date') and (self::label or self::span or self::div or self::p)]"
+                try:
+                    label_element = wait.until(EC.presence_of_element_located((By.XPATH, label_selector)))
+                    logger.info("Found Visit Date label element")
+                except TimeoutException as e:
+                    logger.error(f"Could not find Visit Date label: {e}")
+                    self.take_screenshot("visit_date_label_not_found")
                     return False
+                
+                # Locate the calendar button following the label
+                date_button_selector = "//*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'visit date')]//following::button[contains(@class, 'date-input__calendar-btn') and contains(@class, 'form-control') and @title='Select a Date'][1]"
+                try:
+                    date_button = wait.until(EC.element_to_be_clickable((By.XPATH, date_button_selector)))
+                    logger.info("Found Visit Date button element")
+                except TimeoutException as e:
+                    logger.error(f"Could not find Visit Date button: {e}")
+                    self.take_screenshot("visit_date_button_not_found")
+                    return False
+                
+                # Debug: Log the outer HTML of the button
+                button_html = self.driver.execute_script("return arguments[0].outerHTML;", date_button)
+                logger.info(f"Visit Date button HTML: {button_html}")
+                
+                # Scroll to the element to ensure visibility
+                self.driver.execute_script("arguments[0].scrollIntoView(true);", date_button)
+                time.sleep(0.1)  # Brief wait for scroll
+                
+                # Click the button to open the date table
+                logger.info("Attempting to open date table by clicking the Visit Date button...")
+                try:
+                    date_button.click()  # Try native click first
+                    time.sleep(0.3)  # Wait for the date table to appear
+                except Exception as e:
+                    logger.warning(f"Native click failed, falling back to JavaScript: {e}")
+                    self.driver.execute_script("arguments[0].click();", date_button)
+                    time.sleep(0.3)  # Wait for the date table to appear
+                
+                # Wait for the date table to be visible
+                date_table_selector = ".datepicker-days, .table-condensed, [class*='calendar-days'], [role='application'][class*='datepicker']"
+                try:
+                    wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, date_table_selector)))
+                    logger.info("Date table opened successfully")
+                except TimeoutException:
+                    logger.error("Date table did not appear after clicking")
+                    self.take_screenshot("date_table_not_found")
+                    return False
+                
+                # Wait a bit for the date table to be fully interactable
+                time.sleep(0.2)
+                
+                # Target date components
+                target_year = self.target_date.strftime('%Y')  # "2025"
+                target_month = self.target_date.strftime('%m')  # "06"
+                target_day = self.target_date.strftime('%d').lstrip('0')  # "7"
+                
+                # Verify the current month and year (should already be June 2025)
+                try:
+                    month_year = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, ".datepicker-switch, [class*='month-year']")))
+                    current_month_year = month_year.text  # e.g., "June 2025"
+                    logger.info(f"Current month and year in date table: {current_month_year}")
+                    current_month, current_year = current_month_year.split()
+                    current_month_num = datetime.strptime(current_month, '%B').strftime('%m')
                     
+                    if current_year != target_year or current_month_num != target_month:
+                        logger.error(f"Date table is not on the correct month. Expected {target_month} {target_year}, but got {current_month_num} {current_year}")
+                        self.take_screenshot("wrong_month")
+                        return False
+                    logger.info(f"Confirmed date table is on {current_month} {current_year}")
+                except Exception as e:
+                    logger.error(f"Failed to verify current month in date table: {e}")
+                    self.take_screenshot("month_verification_failed")
+                    return False
+                
+                # Select the target day
+                day_selector = f"//td[contains(@class, 'day') and not(contains(@class, 'old') or contains(@class, 'new')) and normalize-space(text())='{target_day}']"
+                try:
+                    day_element = wait.until(EC.element_to_be_clickable((By.XPATH, day_selector)))
+                    logger.info(f"Found day element for {target_day}")
+                    
+                    # Debug: Log the outer HTML of the day element
+                    day_html = self.driver.execute_script("return arguments[0].outerHTML;", day_element)
+                    logger.info(f"Day element HTML: {day_html}")
+                    
+                    # Scroll to the day element and click
+                    self.driver.execute_script("arguments[0].scrollIntoView(true);", day_element)
+                    time.sleep(0.1)
+                    day_element.click()  # Try native click
+                    logger.info(f"Clicked target day: {target_day}")
+                    time.sleep(0.2)  # Wait for the date table to close
+                except Exception as e:
+                    logger.error(f"Failed to select target day: {e}")
+                    self.take_screenshot("day_selection_failed")
+                    return False
+                
+                # Verify the input field updated
+                date_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@id='visitDate']")))
+                selected_date = date_input.get_attribute('value')
+                logger.info(f"Selected date in input field: {selected_date}")
+                if selected_date != self.target_date.strftime('%Y-%m-%d'):
+                    logger.error(f"Date input did not update correctly. Expected {self.target_date.strftime('%Y-%m-%d')}, but got {selected_date}")
+                    self.take_screenshot("date_input_verification_failed")
+                    return False
+                
+                logger.info("Visit date selected successfully")
+                return True
+                
             except Exception as e:
                 logger.error(f"Failed to select visit date: {e}")
+                self.take_screenshot("date_selection_failed")
                 return False
         
         return self.simulate_step("Select Visit Date", _select_date)
     
     def select_first_pass_type(self):
-        """Select the first option in the pass type"""
         def _select_pass():
             try:
                 logger.info("Selecting first pass type option...")
                 
-                # Common pass type selector patterns
-                pass_selectors = [
-                    "select[name*='pass']",
-                    "select[name*='type']",
-                    "select[id*='pass']",
-                    "select[id*='type']",
-                    "select[name*='product']",
-                    "select[id*='product']",
-                    ".pass-type select",
-                    ".ticket-type select",
-                    "[data-pass-type] select"
-                ]
-                
                 wait_timeout = self.config.get('settings', {}).get('wait_timeout', 10)
                 wait = WebDriverWait(self.driver, wait_timeout)
                 
-                for selector in pass_selectors:
-                    try:
-                        pass_element = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                        select = Select(pass_element)
-                        
-                        # Select the first non-empty option 
-                        options = select.options
-                        for option in options[1:]:  # Skip first if it's a placeholder
-                            if option.get_attribute('value') and option.get_attribute('value') != '':
-                                select.select_by_value(option.get_attribute('value'))
-                                logger.info(f"Selected pass type: {option.text}")
-                                time.sleep(1)  # Wait for page to update
-                                return True
-                        
-                    except:
-                        continue
+                # Target the pass type dropdown
+                pass_selector = "select[name*='pass'], select[name*='type'], select[id*='pass'], select[id*='type'], .pass-type select"
+                pass_element = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, pass_selector)))
                 
-                logger.error("Could not find or select pass type")
-                return False
-                
+                if pass_element.tag_name == 'select':
+                    select = Select(pass_element)
+                    # Select the first non-empty option
+                    options = select.options
+                    for option in options[1:]:  # Skip the "--Select a pass type--" placeholder
+                        if option.get_attribute('value') and option.get_attribute('value') != '':
+                            select.select_by_value(option.get_attribute('value'))
+                            logger.info(f"Selected pass type: {option.text}")
+                            time.sleep(0.5)  # Minimal wait for page update
+                            return True
+                    logger.error("No valid pass type options found")
+                    return False
+                else:
+                    logger.error("Could not find pass type dropdown or unsupported element type")
+                    return False
+                    
             except Exception as e:
                 logger.error(f"Failed to select pass type: {e}")
                 return False
