@@ -217,23 +217,19 @@ class AdvancedTicketBot:
                     self.take_screenshot("visit_date_button_not_found")
                     return False
                 
-                # Debug: Log the outer HTML of the button
-                button_html = self.driver.execute_script("return arguments[0].outerHTML;", date_button)
-                logger.info(f"Visit Date button HTML: {button_html}")
-                
                 # Scroll to the element to ensure visibility
                 self.driver.execute_script("arguments[0].scrollIntoView(true);", date_button)
-                time.sleep(0.1)  # Brief wait for scroll
+                time.sleep(0.1)
                 
                 # Click the button to open the date table
                 logger.info("Attempting to open date table by clicking the Visit Date button...")
                 try:
-                    date_button.click()  # Try native click first
-                    time.sleep(0.3)  # Wait for the date table to appear
+                    date_button.click()
+                    time.sleep(0.5)  # Wait for the date table to appear
                 except Exception as e:
                     logger.warning(f"Native click failed, falling back to JavaScript: {e}")
                     self.driver.execute_script("arguments[0].click();", date_button)
-                    time.sleep(0.3)  # Wait for the date table to appear
+                    time.sleep(0.5)
                 
                 # Wait for the date table to be visible
                 date_table_selector = ".datepicker-days, .table-condensed, [class*='calendar-days'], [role='application'][class*='datepicker']"
@@ -245,64 +241,147 @@ class AdvancedTicketBot:
                     self.take_screenshot("date_table_not_found")
                     return False
                 
-                # Wait a bit for the date table to be fully interactable
-                time.sleep(0.2)
+                time.sleep(0.3)  # Allow table to fully render
                 
-                # Target date components
-                target_year = self.target_date.strftime('%Y')  # "2025"
-                target_month = self.target_date.strftime('%m')  # "06"
-                target_day = self.target_date.strftime('%d').lstrip('0')  # "7"
+                # Calculate target date components
+                today = datetime.now()
+                target_year = self.target_date.year
+                target_month = self.target_date.month
+                target_day = self.target_date.day
                 
-                # Verify the current month and year (should already be June 2025)
-                try:
-                    month_year = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, ".datepicker-switch, [class*='month-year']")))
-                    current_month_year = month_year.text  # e.g., "June 2025"
-                    logger.info(f"Current month and year in date table: {current_month_year}")
-                    current_month, current_year = current_month_year.split()
-                    current_month_num = datetime.strptime(current_month, '%B').strftime('%m')
+                logger.info(f"Target date: {target_year}-{target_month:02d}-{target_day:02d}")
+                logger.info(f"Today: {today.year}-{today.month:02d}-{today.day:02d}")
+                
+                # Navigate to the correct month if needed
+                current_month = today.month
+                current_year = today.year
+                
+                # Check if we need to navigate to next month
+                if target_month > current_month or target_year > current_year:
+                    logger.info(f"Need to navigate from {current_month}/{current_year} to {target_month}/{target_year}")
                     
-                    if current_year != target_year or current_month_num != target_month:
-                        logger.error(f"Date table is not on the correct month. Expected {target_month} {target_year}, but got {current_month_num} {current_year}")
-                        self.take_screenshot("wrong_month")
-                        return False
-                    logger.info(f"Confirmed date table is on {current_month} {current_year}")
-                except Exception as e:
-                    logger.error(f"Failed to verify current month in date table: {e}")
-                    self.take_screenshot("month_verification_failed")
+                    # Find and click the "next" button to navigate to the correct month
+                    next_button_selectors = [
+                        ".datepicker-days .next",
+                        ".next",
+                        "[class*='next']",
+                        "//th[@class='next'][1]",
+                        "//button[contains(@class, 'next')]"
+                    ]
+                    
+                    months_to_advance = (target_year - current_year) * 12 + (target_month - current_month)
+                    
+                    for _ in range(months_to_advance):
+                        next_clicked = False
+                        for selector in next_button_selectors:
+                            try:
+                                if selector.startswith('//'):
+                                    next_btn = wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
+                                else:
+                                    next_btn = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+                                next_btn.click()
+                                time.sleep(0.3)  # Wait for month to change
+                                logger.info(f"Advanced to next month")
+                                next_clicked = True
+                                break
+                            except:
+                                continue
+                        
+                        if not next_clicked:
+                            logger.error("Could not find next button to navigate months")
+                            self.take_screenshot("next_button_not_found")
+                            return False
+                
+                # Now select the target day
+                # Try multiple selectors for the day element
+                day_selectors = [
+                    f"//td[contains(@class, 'day') and not(contains(@class, 'old')) and not(contains(@class, 'new')) and not(contains(@class, 'disabled')) and normalize-space(text())='{target_day}']",
+                    f"//td[@class='day' and normalize-space(text())='{target_day}']",
+                    f"//td[contains(@class, 'day') and text()='{target_day}']",
+                    f"td.day:not(.old):not(.new):not(.disabled)",  # This will need additional filtering
+                ]
+                
+                day_element = None
+                for selector in day_selectors[:-1]:  # Skip the last CSS selector for now
+                    try:
+                        day_element = wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
+                        logger.info(f"Found day element for {target_day} using selector: {selector}")
+                        break
+                    except:
+                        continue
+                
+                # If XPath selectors failed, try CSS selector with additional filtering
+                if not day_element:
+                    try:
+                        day_elements = self.driver.find_elements(By.CSS_SELECTOR, "td.day:not(.old):not(.new):not(.disabled)")
+                        for element in day_elements:
+                            if element.text.strip() == str(target_day):
+                                day_element = element
+                                logger.info(f"Found day element for {target_day} using CSS selector with filtering")
+                                break
+                    except:
+                        pass
+                
+                if not day_element:
+                    logger.error(f"Could not find clickable day element for {target_day}")
+                    self.take_screenshot("day_element_not_found")
+                    
+                    # Debug: Log all available day elements
+                    try:
+                        all_days = self.driver.find_elements(By.CSS_SELECTOR, "td.day")
+                        logger.debug(f"Available day elements:")
+                        for day in all_days:
+                            classes = day.get_attribute('class')
+                            text = day.text.strip()
+                            logger.debug(f"  Day: '{text}', Classes: '{classes}'")
+                    except:
+                        logger.debug("Could not retrieve day elements for debugging")
+                    
                     return False
                 
-                # Select the target day
-                day_selector = f"//td[contains(@class, 'day') and not(contains(@class, 'old') or contains(@class, 'new')) and normalize-space(text())='{target_day}']"
+                # Click the day element
                 try:
-                    day_element = wait.until(EC.element_to_be_clickable((By.XPATH, day_selector)))
-                    logger.info(f"Found day element for {target_day}")
-                    
-                    # Debug: Log the outer HTML of the day element
-                    day_html = self.driver.execute_script("return arguments[0].outerHTML;", day_element)
-                    logger.info(f"Day element HTML: {day_html}")
-                    
-                    # Scroll to the day element and click
+                    # Scroll to the day element
                     self.driver.execute_script("arguments[0].scrollIntoView(true);", day_element)
                     time.sleep(0.1)
-                    day_element.click()  # Try native click
-                    logger.info(f"Clicked target day: {target_day}")
-                    time.sleep(0.2)  # Wait for the date table to close
+                    
+                    # Click the day
+                    day_element.click()
+                    logger.info(f"Successfully clicked target day: {target_day}")
+                    time.sleep(0.3)  # Wait for the date table to close
+                    
                 except Exception as e:
-                    logger.error(f"Failed to select target day: {e}")
-                    self.take_screenshot("day_selection_failed")
-                    return False
+                    logger.warning(f"Native click failed, trying JavaScript click: {e}")
+                    try:
+                        self.driver.execute_script("arguments[0].click();", day_element)
+                        logger.info(f"Successfully clicked target day with JavaScript: {target_day}")
+                        time.sleep(0.3)
+                    except Exception as e2:
+                        logger.error(f"Both click methods failed: {e2}")
+                        self.take_screenshot("day_click_failed")
+                        return False
                 
-                # Verify the input field updated
-                date_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@id='visitDate']")))
-                selected_date = date_input.get_attribute('value')
-                logger.info(f"Selected date in input field: {selected_date}")
-                if selected_date != self.target_date.strftime('%Y-%m-%d'):
-                    logger.error(f"Date input did not update correctly. Expected {self.target_date.strftime('%Y-%m-%d')}, but got {selected_date}")
-                    self.take_screenshot("date_input_verification_failed")
+                # Verify the input field updated correctly
+                try:
+                    date_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@id='visitDate']")))
+                    selected_date = date_input.get_attribute('value')
+                    expected_date = self.target_date.strftime('%Y-%m-%d')
+                    
+                    logger.info(f"Selected date in input field: '{selected_date}'")
+                    logger.info(f"Expected date: '{expected_date}'")
+                    
+                    if selected_date == expected_date:
+                        logger.info("✅ Visit date selected successfully!")
+                        return True
+                    else:
+                        logger.error(f"❌ Date input verification failed. Expected '{expected_date}', got '{selected_date}'")
+                        self.take_screenshot("date_verification_failed")
+                        return False
+                        
+                except Exception as e:
+                    logger.error(f"Failed to verify selected date: {e}")
+                    self.take_screenshot("date_verification_error")
                     return False
-                
-                logger.info("Visit date selected successfully")
-                return True
                 
             except Exception as e:
                 logger.error(f"Failed to select visit date: {e}")
