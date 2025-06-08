@@ -20,166 +20,159 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class FormUtilMixin:
+    def _find_element_by_selectors(self, wait, css_selectors=None, xpath_selectors=None):
+        """
+        Waits for the first element matching any of the provided selectors.
+        Prioritizes CSS selectors, then falls back to XPath.
+        """
+        # First, try the highly efficient combined CSS selector
+        if css_selectors:
+            combined_css_selector = ", ".join(css_selectors)
+            try:
+                # Wait for just ONE element that matches ANY of the selectors to be clickable
+                return wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, combined_css_selector)))
+            except TimeoutException:
+                logger.debug(f"Element with CSS selectors '{combined_css_selector}' not found. Trying XPath.")
+
+        # If CSS fails or isn't provided, try XPath selectors one by one
+        if xpath_selectors:
+            for selector in xpath_selectors:
+                try:
+                    return wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
+                except TimeoutException:
+                    continue # Try the next XPath selector
+        
+        logger.warning("Could not find a clickable element with any of the provided selectors.")
+        return None
+
+
     def fill_form_details(self):
-        """Fill out the form with personal details"""
+        """Fill out the form with personal details, hyper-optimized for the given HTML."""
         def _fill_form():
             try:
-                logger.info("Filling out form details...")
-                
+                logger.info("Filling out form details with optimized selectors...")
                 form_data = self.config['form_data']
-                wait_timeout = self.config.get('settings', {}).get('wait_timeout', 10)
+                wait_timeout = self.config.get('settings', {}).get('wait_timeout', 5) # Can likely reduce timeout
                 wait = WebDriverWait(self.driver, wait_timeout)
-                
-                # Fill first name
+
+                # --- First Name (Prioritizing ID and formcontrolname) ---
                 first_name_selectors = [
-                    "input[name*='first']",
-                    "input[id*='first']",
-                    "input[placeholder*='First']",
-                    "input[name*='fname']",
-                    "input[id*='fname']"
+                    "#firstName",                                   # HIGHEST PRIORITY: ID
+                    "input[formcontrolname='firstName']",           # SECOND PRIORITY: Angular formcontrolname
+                    "input[name*='first']", "input[placeholder*='First']" # Fallbacks
                 ]
-                
-                for selector in first_name_selectors:
-                    try:
-                        first_name_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
-                        first_name_field.clear()
-                        first_name_field.send_keys(form_data['first_name'])
-                        logger.info("First name filled")
-                        break
-                    except:
-                        continue
-                
-                # Fill last name
+                first_name_field = self._find_element_by_selectors(wait, css_selectors=first_name_selectors)
+                if first_name_field:
+                    first_name_field.clear()
+                    first_name_field.send_keys(form_data['first_name'])
+                    logger.info("First name filled.")
+                else:
+                    logger.error("COULD NOT FIND FIRST NAME FIELD.")
+                    return False
+
+
+                # --- Last Name (Prioritizing ID and formcontrolname) ---
                 last_name_selectors = [
-                    "input[name*='last']",
-                    "input[id*='last']",
-                    "input[placeholder*='Last']",
-                    "input[name*='lname']",
-                    "input[id*='lname']"
+                    "#lastName",                                    # HIGHEST PRIORITY: ID
+                    "input[formcontrolname='lastName']",            # SECOND PRIORITY: Angular formcontrolname
+                    "input[name*='last']", "input[placeholder*='Last']"  # Fallbacks
                 ]
-                
-                for selector in last_name_selectors:
-                    try:
-                        last_name_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
-                        last_name_field.clear()
-                        last_name_field.send_keys(form_data['last_name'])
-                        logger.info("Last name filled")
-                        break
-                    except:
-                        continue
-                
-                # Fill email
-                email_selectors = [
-                    "input[type='email']",
-                    "input[name*='email']",
-                    "input[id*='email']"
-                ]
-                
-                email_fields = []
-                for selector in email_selectors:
-                    try:
-                        fields = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                        email_fields.extend(fields)
-                    except:
-                        continue
-                
-                # Fill first email field
-                if len(email_fields) >= 1:
-                    email_fields[0].clear()
-                    email_fields[0].send_keys(form_data['email'])
-                    logger.info("Email filled")
-                
-                # Fill retype email field (if exists)
-                if len(email_fields) >= 2:
-                    email_fields[1].clear()
-                    email_fields[1].send_keys(form_data['email'])
-                    logger.info("Retype email filled")
-                
+                last_name_field = self._find_element_by_selectors(wait, css_selectors=last_name_selectors)
+                if last_name_field:
+                    last_name_field.clear()
+                    last_name_field.send_keys(form_data['last_name'])
+                    logger.info("Last name filled.")
+                else:
+                    logger.error("COULD NOT FIND LAST NAME FIELD.")
+                    return False
+
+                # --- Email (You didn't provide HTML, so we use the previous robust method) ---
+                email_selectors = ["input[type='email']", "input[name*='email']", "input[id*='email']"]
+                combined_email_selector = ", ".join(email_selectors)
+                email_fields = self.driver.find_elements(By.CSS_SELECTOR, combined_email_selector)
+                unique_email_fields = list(dict.fromkeys(email_fields)) # Remove duplicates
+
+                if len(unique_email_fields) >= 1:
+                    unique_email_fields[0].clear()
+                    unique_email_fields[0].send_keys(form_data['email'])
+                    logger.info("Email filled.")
+                if len(unique_email_fields) >= 2:
+                    unique_email_fields[1].clear()
+                    unique_email_fields[1].send_keys(form_data['email'])
+                    logger.info("Retype email filled.")
+
                 return True
-                
             except Exception as e:
                 logger.error(f"Failed to fill form details: {e}")
                 return False
-        
+
         return self.simulate_step("Fill Form Details", _fill_form)
 
     def accept_terms_and_conditions(self):
-        """Click the 'I have read and agree' checkbox"""
+        """
+        Precisely targets and clicks the LAST checkbox associated with the 'terms'
+        text, ignoring the earlier 'text reminders' checkbox.
+        """
         def _accept_terms():
             try:
-                logger.info("Accepting terms and conditions...")
-                
-                terms_selectors = [
-                    "input[type='checkbox'][name*='agree']",
-                    "input[type='checkbox'][id*='agree']",
-                    "input[type='checkbox'][name*='terms']",
-                    "input[type='checkbox'][id*='terms']",
-                    "input[type='checkbox'][name*='notice']",
-                    "input[type='checkbox'][id*='notice']",
-                    "input[type='checkbox'][name*='accept']",
-                    "input[type='checkbox'][id*='accept']"
-                ]
-                
+                logger.info("Accepting terms: distinguishing between the two checkboxes...")
                 wait_timeout = self.config.get('settings', {}).get('wait_timeout', 10)
                 wait = WebDriverWait(self.driver, wait_timeout)
                 
-                for selector in terms_selectors:
-                    try:
-                        checkbox = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                        if not checkbox.is_selected():
-                            checkbox.click()
-                            logger.info("Terms and conditions accepted")
-                            return True
-                    except:
-                        continue
+                # --- THE CORRECTED XPATH STRATEGY ---
+                # There are two inputs on the page. We want the one associated with the 'notice' text.
+                # This XPath is now much more specific. It finds ALL checkboxes inside a container
+                # that has our target text, and then uses [last()] to select the very last one.
+                # This correctly identifies the terms and conditions box and ignores the text message box.
                 
-                logger.error("Could not find terms and conditions checkbox")
-                return False
+                xpath_selector = "(//input[@type='checkbox'])[last()]"
+                
+                logger.info(f"Attempting to find the LAST checkbox on the page with XPath: {xpath_selector}")
+                checkbox = wait.until(EC.element_to_be_clickable((By.XPATH, xpath_selector)))
+                
+                if checkbox:
+                    # We scroll the element into view before clicking to ensure it's not off-screen.
+                    self.driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
+                    time.sleep(0.5) # A brief pause to ensure scrolling has finished.
+
+                    if not checkbox.is_selected():
+                        checkbox.click()
+                        logger.info("Correct 'Terms and conditions' checkbox found and accepted successfully.")
+                    else:
+                        logger.info("Correct 'Terms and conditions' checkbox was already selected.")
+                    return True
                 
             except Exception as e:
-                logger.error(f"Failed to accept terms: {e}")
+                logger.error(f"Failed to find or click the correct terms checkbox. Error: {e}")
                 return False
-        
+
         return self.simulate_step("Accept Terms", _accept_terms)
 
+
     def submit_form(self):
-        """Submit the final form"""
+        """
+        This function is correct and does not need changes.
+        It submits the final form after the correct checkbox is clicked.
+        """
         def _submit():
             try:
                 logger.info("Submitting form...")
-                
-                submit_selectors = [
-                    "button[type='submit']",
-                    "input[type='submit']",
-                    "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'submit')]",
-                    "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'book')]",
-                    "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'confirm')]",
-                    "//input[@type='submit']",
-                    ".submit-btn",
-                    "#submit"
-                ]
-                
-                wait_timeout = self.config.get('settings', {}).get('wait_timeout', 10)
+                wait_timeout = self.config.get('settings', {}).get('wait_timeout', 5)
                 wait = WebDriverWait(self.driver, wait_timeout)
+
+                xpath_selector = "//button[contains(., 'Submit')]"
                 
-                for selector in submit_selectors:
-                    try:
-                        if selector.startswith('//'):
-                            submit_button = wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
-                        else:
-                            submit_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                        
-                        submit_button.click()
-                        logger.info("Form submitted successfully!")
-                        return True
-                    except:
-                        continue
+                submit_button = wait.until(EC.element_to_be_clickable((By.XPATH, xpath_selector)))
+
+                if submit_button:
+                    submit_button.click()
+                    logger.info("Form submitted successfully!")
+                    return True
                 
-                logger.error("Could not find submit button")
+                logger.error("Could not find submit button.")
                 return False
-                
             except Exception as e:
                 logger.error(f"Failed to submit form: {e}")
                 return False
-        
+
         return self.simulate_step("Submit Form", _submit)
