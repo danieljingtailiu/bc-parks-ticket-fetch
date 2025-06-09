@@ -1,0 +1,9 @@
+# Core automation and browser control
+selenium==4.15.0
+undetected-chromedriver==3.5.5
+
+# Timezone handling
+pytz==2023.3
+
+# Optional but harmless to keep
+aiohttp==3.9.1
