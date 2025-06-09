@@ -38,6 +38,23 @@ class AdvancedTicketBot(DateUtilMixin, FormUtilMixin):
         self.parks = config.get('parks', {})
         self.cloudflare_bypass_enabled = config.get('settings', {}).get('cloudflare_bypass', True)
 
+    def ensure_cf_clearance_folder(self):
+        """Ensure cf-clearance folder exists in the script directory."""
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        cf_clearance_path = os.path.join(script_dir, "cf-clearance")
+        
+        if not os.path.exists(cf_clearance_path):
+            try:
+                os.makedirs(cf_clearance_path, exist_ok=True)
+                logger.info(f"✅ Created new cf-clearance folder: {cf_clearance_path}")
+            except Exception as e:
+                logger.error(f"❌ Failed to create cf-clearance folder: {e}")
+                return None
+        else:
+            logger.info(f"Using existing cf-clearance folder: {cf_clearance_path}")
+        
+        return cf_clearance_path
+
     def setup_driver(self):
         """Setup the driver, defaulting to the stealth version."""
         if self.cloudflare_bypass_enabled:
@@ -50,12 +67,15 @@ class AdvancedTicketBot(DateUtilMixin, FormUtilMixin):
     def setup_stealth_driver(self):
         """Setup with undetected-chromedriver and a persistent user profile."""
         try:
-            options = uc.ChromeOptions()
-            profile_path = self.config.get('settings', {}).get('cf-clearance_path', {})
+            # Always use cf-clearance folder in script directory
+            profile_path = self.ensure_cf_clearance_folder()
+            if not profile_path:
+                logger.error("Failed to create/access cf-clearance folder")
+                return False
             
-            if not os.path.exists(profile_path):
-                os.makedirs(profile_path)
-            logger.info(f"Using persistent profile directory: {profile_path}")
+            options = uc.ChromeOptions()
+            
+            logger.info(f"Using profile directory: {profile_path}")
             options.add_argument(f"--user-data-dir={profile_path}")
             options.add_argument(r'--profile-directory=Default')
 
@@ -66,12 +86,15 @@ class AdvancedTicketBot(DateUtilMixin, FormUtilMixin):
             
             wait_timeout = self.config.get('settings', {}).get('wait_timeout', 15)
             self.driver.implicitly_wait(wait_timeout)
-            logger.info("Stealth driver with persistent profile setup completed.")
+            logger.info("✅ Stealth driver with persistent profile setup completed.")
             return True
+            
         except Exception as e:
             logger.error(f"CRITICAL: Stealth driver setup failed. Error: {e}", exc_info=True)
             logger.error("This can happen if a Chrome process is already running using this profile. Close ALL Chrome windows and try again.")
             return False
+
+
 
     def calculate_target_date(self):
         """Calculate the date based on config."""

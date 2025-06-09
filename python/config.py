@@ -30,7 +30,7 @@ FORM_DATA = {
 # Bot Settings
 SETTINGS = {
     'wait_timeout': 3,  # Use the production timeout
-    'cf-clearance_path':r"xxxxx/xxxxx/xxxxx/xxx", # <-- your cf-clearance folder path, the folder should be empty and in the python folder
+
     # Use 24-hour format. E.g., if it's 2:10 PM, set this to '14:13'.
     'vancouver_release_time': '07:00', # <--- SET THIS TO A FUTURE TIME
     'days_ahead': 0,
@@ -39,7 +39,7 @@ SETTINGS = {
     'skip_time_wait': SKIP_TIME_WAIT,
     # python indexing, 0 euqates to the first pass type option
     'pass_type_index': 1,
-    'visit_time': 'AM', # <-- 3 options, AM, PM, ALL DAY
+    'visit_time': 'PM', # <-- 3 options, AM, PM, ALL DAY
 }
 
 # Test-specific settings will be IGNORED because TEST_MODE is False
