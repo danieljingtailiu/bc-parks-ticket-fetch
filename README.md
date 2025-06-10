@@ -105,7 +105,7 @@ Therefore, the entire strategy of this project is **challenge avoidance**, not c
 
 ### Demonstration
 
- ![Demo Video](./screenshots/demo-vid.gif)
+ <img src="./screenshots/demo-vid.gif" width="75%">
 
 **Note:** The script includes a deliberate delay to simulate user interaction, which helps bypass bot-detection mechanisms (e.g., Cloudflare).
 
