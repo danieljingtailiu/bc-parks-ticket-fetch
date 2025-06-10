@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 
 python/cf-clearance/
+screenshots/demo-vid.gif
 # C extensions
 *.so
 

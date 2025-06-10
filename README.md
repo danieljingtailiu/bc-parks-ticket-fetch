@@ -98,10 +98,16 @@ Therefore, the entire strategy of this project is **challenge avoidance**, not c
     * Set the `SELECTED_PARK` to your desired park.
     * Review all settings under `SETTINGS` and `TEST_SETTINGS` to match your needs.
 
-    Default Settings
+    ### Default Settings
     ![default setting](./screenshots/default-settings.png)
 
 ## Usage
+
+### Demonstration
+
+ ![Demo Video](./screenshots/demo-vid.gif)
+
+**Note:** The script includes a deliberate delay to simulate user interaction, which helps bypass bot-detection mechanisms (e.g., Cloudflare).
 
 ### Realistic Production Test
 This is the recommended way to ensure the bot is working correctly before the actual release day.
