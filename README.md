@@ -90,7 +90,7 @@ Therefore, the entire strategy of this project is **challenge avoidance**, not c
 4.  **Create the Browser Profile Directory (IMPORTANT):**
     The bot will create a folder named `cf-clearance` inside the `python` directory.
     
-    **What this folder does:** This folder stores the persistent browser profile (cookies, session data, etc.). Using a persistent profile is a critical part of the stealth strategy, as it makes the bot appear as a trusted, returning user to the website's security systems. The script will read from and write to this folder, but it will not create it automatically.
+    **What this folder does:** This folder stores the persistent browser profile (cookies, session data, etc.). Using a persistent profile is a critical part of the stealth strategy, as it makes the bot appear as a trusted, returning user to the website's security systems. The script will read from and write to this folder, it will create it automatically.
 
 5.  **Configure the Bot:**
     * Open the `config.py` file.
