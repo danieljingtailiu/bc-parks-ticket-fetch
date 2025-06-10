@@ -46,12 +46,12 @@ class AdvancedTicketBot(DateUtilMixin, FormUtilMixin):
         if not os.path.exists(cf_clearance_path):
             try:
                 os.makedirs(cf_clearance_path, exist_ok=True)
-                logger.info(f"✅ Created new cf-clearance folder: {cf_clearance_path}")
+                logger.info("✅ Created new cf-clearance folder")
             except Exception as e:
                 logger.error(f"❌ Failed to create cf-clearance folder: {e}")
                 return None
         else:
-            logger.info(f"Using existing cf-clearance folder: {cf_clearance_path}")
+            logger.info("Using existing cf-clearance folder")
         
         return cf_clearance_path
 
@@ -75,7 +75,7 @@ class AdvancedTicketBot(DateUtilMixin, FormUtilMixin):
             
             options = uc.ChromeOptions()
             
-            logger.info(f"Using profile directory: {profile_path}")
+            logger.info("Setting up Chrome profile")
             options.add_argument(f"--user-data-dir={profile_path}")
             options.add_argument(r'--profile-directory=Default')
 
