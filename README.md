@@ -105,9 +105,18 @@ Therefore, the entire strategy of this project is **challenge avoidance**, not c
 
 ### Demonstration
 
- <img src="./screenshots/demo-vid.gif" width="75%">
+<img src="./screenshots/demo-vid.gif" width="75%">
 
-**Note:** The script includes a deliberate delay to simulate user interaction, which helps bypass bot-detection mechanisms (e.g., Cloudflare).
+Note: The script includes a deliberate delay to simulate user interaction, which helps bypass bot-detection mechanisms (e.g., Cloudflare).
+
+### Timing Strategy
+
+The bot uses a two-phase approach:
+
+- Pre-release: Starts early to build a trusted session with human-like delays
+- At release time: Waits for your configured vancouver_release_time, then executes high-speed booking
+
+Delays occur before the configured release time, not during the actual booking process.
 
 ### Realistic Production Test
 This is the recommended way to ensure the bot is working correctly before the actual release day.
