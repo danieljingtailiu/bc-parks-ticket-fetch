@@ -528,7 +528,7 @@ class DateUtilMixin:
                         
                         next_button.click()
                         logger.info("Next button clicked successfully")
-                        time.sleep(3)  # Wait for page to load
+                        time.sleep(4)  # Wait for page to load
                         return True
                     except:
                         continue

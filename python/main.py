@@ -16,7 +16,7 @@ import logging
 import random
 import undetected_chromedriver as uc
 from selenium.webdriver.common.action_chains import ActionChains
-
+from datetime import timedelta
 from date_utils import DateUtilMixin
 from form_utils import FormUtilMixin
 
@@ -131,34 +131,39 @@ class AdvancedTicketBot(DateUtilMixin, FormUtilMixin):
             return actual_function()
 
     async def wait_for_release_time(self):
-        """Wait until the configured release time in Vancouver time zone."""
-        if self.skip_time_wait:
-            logger.info("SKIPPING time wait due to test mode settings.")
-            return True
-            
-        vancouver_tz = pytz.timezone('America/Vancouver')
-        release_time_str = self.config.get('settings', {}).get('vancouver_release_time', '07:00')
-        hour, minute = map(int, release_time_str.split(':'))
-        
-        while True:
-            now_vancouver = datetime.now(vancouver_tz)
-            target_time = now_vancouver.replace(hour=hour, minute=minute, second=0, microsecond=0)
-            
-            if now_vancouver.time() >= target_time.time():
-                logger.info(f"It's past {release_time_str} Vancouver time. Proceeding.")
+            """Wait until the configured release time in Vancouver time zone."""
+            if self.skip_time_wait:
+                logger.info("SKIPPING time wait due to test mode settings.")
                 return True
+                
+            vancouver_tz = pytz.timezone('America/Vancouver')
+            release_time_str = self.config.get('settings', {}).get('vancouver_release_time', '07:00')
+            hour, minute = map(int, release_time_str.split(':'))
             
-            time_diff = (target_time - now_vancouver).total_seconds()
-            
-            if time_diff <= 10:
-                logger.info(f"Getting ready... {time_diff:.1f} seconds remaining.")
-                await asyncio.sleep(0.1)
-            elif time_diff <= 60:
-                logger.info(f"Almost time... {time_diff:.0f} seconds remaining.")
-                await asyncio.sleep(1)
-            else:
-                logger.info(f"Waiting for release. {time_diff:.0f} seconds remaining.")
-                await asyncio.sleep(30)
+            while True:
+                now_vancouver = datetime.now(vancouver_tz)
+                target_time = now_vancouver.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                
+                # If the target time has already passed today, set it for tomorrow
+                if now_vancouver >= target_time:
+                    target_time += timedelta(days=1)
+                
+                time_diff = (target_time - now_vancouver).total_seconds()
+                
+                if time_diff <= 10:
+                    logger.info(f"Getting ready... {time_diff:.1f} seconds remaining.")
+                    await asyncio.sleep(0.1)
+                elif time_diff <= 60:
+                    logger.info(f"Almost time... {time_diff:.0f} seconds remaining.")
+                    await asyncio.sleep(1)
+                else:
+                    logger.info(f"Waiting for release. {time_diff:.0f} seconds remaining.")
+                    await asyncio.sleep(30)
+                
+                # Check if we've reached the target time
+                if datetime.now(vancouver_tz) >= target_time:
+                    logger.info(f"It's now {release_time_str} Vancouver time. Proceeding.")
+                    return True
 
     def refresh_site(self):
         """Refreshes the current page."""

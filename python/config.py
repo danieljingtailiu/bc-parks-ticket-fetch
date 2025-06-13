@@ -17,7 +17,7 @@ PARKS = {
     }
 }
 
-SELECTED_PARK = 'golden_ears' # choose the parks using the search text i.e. joffre_lakes
+SELECTED_PARK = 'garibaldi' # choose the parks using the search text i.e. joffre_lakes
 TICKET_URL = 'https://reserve.bcparks.ca/dayuse/'
 
 # Personal Information
@@ -33,13 +33,13 @@ SETTINGS = {
 
     # Use 24-hour format. E.g., if it's 2:10 PM, set this to '14:13'.
     'vancouver_release_time': '07:00', # <--- SET THIS TO A FUTURE TIME
-    'days_ahead': 0,
+    'days_ahead': 2,
     'keep_browser_open_seconds': 30, # Keep open longer to see the result
     'test_mode': TEST_MODE,
     'skip_time_wait': SKIP_TIME_WAIT,
     # python indexing, 0 euqates to the first pass type option
-    'pass_type_index': 1,
-    'visit_time': 'PM', # <-- 3 options, AM, PM, ALL DAY
+    'pass_type_index': 0,
+    'visit_time': 'AM', # <-- 3 options, AM, PM, ALL DAY
 }
 
 # Test-specific settings will be IGNORED because TEST_MODE is False
