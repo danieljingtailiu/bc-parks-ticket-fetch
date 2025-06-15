@@ -177,65 +177,82 @@ class AdvancedTicketBot(DateUtilMixin, FormUtilMixin):
             return False
 
     async def run_complete_flow(self):
-        """
-        Executes the booking flow by warming up the session, then
-        racing through the selections after the 7 AM refresh.
-        """
-        try:
-            self.calculate_target_date()
-            if not self.setup_driver():
-                logger.error("Driver setup failed. Aborting flow.")
+            """
+            Executes the booking flow by warming up the session, then
+            racing through the selections after the 7 AM refresh.
+            """
+            try:
+                self.calculate_target_date()
+                if not self.setup_driver():
+                    logger.error("Driver setup failed. Aborting flow.")
+                    return False
+
+                # --- PRE-7 AM: SESSION WARM-UP (Build Trust) ---
+                logger.info("--- Starting Session WARM-UP Phase ---")
+            
+                logger.info(f"Navigating to: {self.config['ticket_url']} to build a clean session.")
+                self.driver.get(self.config['ticket_url'])
+            
+                logger.info("Session started. Simulating human presence before release time...")
+                time.sleep(random.uniform(5, 12))
+            
+                for _ in range(random.randint(1, 3)):
+                    self.driver.execute_script(f"window.scrollBy(0, {random.randint(50, 200)});")
+                    time.sleep(random.uniform(0.6, 1.5))
+
+                logger.info("--- WARM-UP Complete. Waiting for release time. ---")
+            
+                # --- AT 7 AM: THE RACE (Maximum Speed) ---
+                await self.wait_for_release_time()
+            
+                logger.info("--- GO-TIME! Refreshing and beginning high-speed selection! ---")
+                if not self.refresh_site(): return False
+                self.wait_for_user_input("Page refreshed, now racing at max speed")
+            
+                if not self.select_park_and_book(): return False
+                
+                # Try select_visit_date with retry mechanism
+                try:
+                    if not self.select_visit_date(): return False
+                except Exception as e:
+                    logger.warning(f"First attempt at select_visit_date failed: {e}")
+                    logger.info("Refreshing site and retrying select_visit_date...")
+                    
+                    if not self.refresh_site(): return False
+                    logger.info("Site refreshed successfully. Retrying select_visit_date...")
+                    
+                    try:
+                        if not self.select_visit_date(): return False
+                        logger.info("select_visit_date succeeded on retry after refresh.")
+                    except Exception as retry_e:
+                        logger.error(f"select_visit_date failed on retry: {retry_e}")
+                        return False
+                
+                if not self.select_pass_type(): return False
+                if not self.select_visit_time(): return False
+                if not self.click_next_button(): return False
+                if not self.fill_form_details(): return False
+                if not self.accept_terms_and_conditions(): return False
+                if not self.submit_form(): return False
+            
+                logger.info("✅ Complete booking flow executed successfully!")
+                keep_open_time = self.config.get('settings', {}).get('keep_browser_open_seconds', 15)
+                logger.info(f"Process finished. Browser will remain open for {keep_open_time} seconds.")
+                time.sleep(keep_open_time)
+                return True
+            
+            except Exception as e:
+                logger.error(f"Complete flow failed with an unexpected error: {e}", exc_info=True)
+                self.take_screenshot("flow_failure")
                 return False
-
-            # --- PRE-7 AM: SESSION WARM-UP (Build Trust) ---
-            logger.info("--- Starting Session WARM-UP Phase ---")
-            
-            logger.info(f"Navigating to: {self.config['ticket_url']} to build a clean session.")
-            self.driver.get(self.config['ticket_url'])
-            
-            logger.info("Session started. Simulating human presence before release time...")
-            time.sleep(random.uniform(5, 12))
-            
-            for _ in range(random.randint(1, 3)):
-                self.driver.execute_script(f"window.scrollBy(0, {random.randint(50, 200)});")
-                time.sleep(random.uniform(0.6, 1.5))
-
-            logger.info("--- WARM-UP Complete. Waiting for release time. ---")
-            
-            # --- AT 7 AM: THE RACE (Maximum Speed) ---
-            await self.wait_for_release_time()
-            
-            logger.info("--- GO-TIME! Refreshing and beginning high-speed selection! ---")
-            if not self.refresh_site(): return False
-            self.wait_for_user_input("Page refreshed, now racing at max speed")
-            
-            if not self.select_park_and_book(): return False
-            if not self.select_visit_date(): return False
-            if not self.select_pass_type(): return False
-            if not self.select_visit_time(): return False
-            if not self.click_next_button(): return False
-            if not self.fill_form_details(): return False
-            if not self.accept_terms_and_conditions(): return False
-            if not self.submit_form(): return False
-            
-            logger.info("✅ Complete booking flow executed successfully!")
-            keep_open_time = self.config.get('settings', {}).get('keep_browser_open_seconds', 15)
-            logger.info(f"Process finished. Browser will remain open for {keep_open_time} seconds.")
-            time.sleep(keep_open_time)
-            return True
-            
-        except Exception as e:
-            logger.error(f"Complete flow failed with an unexpected error: {e}", exc_info=True)
-            self.take_screenshot("flow_failure")
-            return False
         
-        finally:
-            if self.driver:
-                if self.test_mode or 'pydevd' in sys.modules:
-                    logger.info("Debug/Test mode active. Keeping browser open for 60 seconds.")
-                    time.sleep(60)
-                self.driver.quit()
-                logger.info("Browser has been closed.")
+            finally:
+                if self.driver:
+                    if self.test_mode or 'pydevd' in sys.modules:
+                        logger.info("Debug/Test mode active. Keeping browser open for 60 seconds.")
+                        time.sleep(60)
+                    self.driver.quit()
+                    logger.info("Browser has been closed.")
 
 # --- CONFIGURATION LOADER ---
 def load_config():
