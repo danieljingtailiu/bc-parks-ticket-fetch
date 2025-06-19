@@ -32,8 +32,8 @@ SETTINGS = {
     'wait_timeout': 3,  # Use the production timeout
 
     # Use 24-hour format. E.g., if it's 2:10 PM, set this to '14:13'.
-    'vancouver_release_time': '07:07', # <--- SET THIS TO A FUTURE TIME
-    'days_ahead': 3,
+    'vancouver_release_time': '07:00', # <--- SET THIS TO A FUTURE TIME
+    'days_ahead': 2,
     'keep_browser_open_seconds': 30, # Keep open longer to see the result
     'test_mode': TEST_MODE,
     'skip_time_wait': SKIP_TIME_WAIT,
